@@ -18,17 +18,24 @@ public:
     // Set matrices for multiplication
     void setMatrices(const Matrix& a, const Matrix& b);
     
+    // Begin computation after clients have connected
+    void startComputation();
+    
     // Check if computation is complete
     bool isComplete() const;
     
     // Get the result matrix
     Matrix getResult() const;
+    
+    // Get current number of connected clients
+    int getClientCount() const;
 
 private:
     // Server socket
     int serverSocket_;
     int port_;
     std::atomic<bool> running_;
+    std::atomic<bool> computationStarted_;
     
     // Input and output matrices
     Matrix matrixA_;
@@ -37,7 +44,7 @@ private:
     
     // Tracking tasks and clients
     std::map<int, std::thread> clientThreads_;
-    std::mutex clientsMutex_;
+    mutable std::mutex clientsMutex_;
     
     std::queue<Task> taskQueue_;
     std::mutex taskMutex_;
@@ -55,7 +62,6 @@ private:
     void handleClient(int clientSocket, struct sockaddr_in clientAddr);
     
     // Task management
-    Task createTask();
     void processResult(const Result& result);
     
     // Calculate how to divide work based on available clients

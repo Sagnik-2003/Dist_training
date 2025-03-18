@@ -42,8 +42,16 @@ int main(int argc, char* argv[]) {
     // Set matrices for computation
     master.setMatrices(matrixA, matrixB);
     
+    // Wait for clients to connect
+    std::cout << "\nWaiting for clients to connect...\n";
+    std::cout << "Press Enter when ready to start computation with the connected clients\n";
+    std::cin.get();
+    
+    // Start computation with connected clients
+    master.startComputation();
+    
     // Wait for computation to complete
-    std::cout << "Waiting for computation to complete...\n";
+    std::cout << "Computation started. Waiting for completion...\n";
     while (!master.isComplete()) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }

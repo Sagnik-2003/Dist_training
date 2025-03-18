@@ -3,7 +3,7 @@
 #include <cstring>
 
 Master::Master(int port) 
-    : port_(port), running_(false), 
+    : port_(port), running_(false), computationStarted_(false),
       matrixA_(1, 1), matrixB_(1, 1), resultMatrix_(1, 1),
       nextTaskId_(0), completedTasks_(0), totalTasks_(0) {}
 
@@ -44,6 +44,8 @@ void Master::start() {
     
     running_ = true;
     std::cout << "Master server started on port " << port_ << std::endl;
+    std::cout << "Waiting for clients to connect...\n";
+    std::cout << "Connected clients: 0\n";
     
     // Start accepting client connections in a separate thread
     std::thread acceptThread(&Master::acceptConnections, this);
@@ -62,9 +64,34 @@ void Master::stop() {
     // Send shutdown to all clients
     std::lock_guard<std::mutex> lock(clientsMutex_);
     for (auto& client : clientThreads_) {
+        NetworkMessage::sendMessage(client.first, SHUTDOWN, {});
         client.second.join();
     }
     clientThreads_.clear();
+}
+
+void Master::startComputation() {
+    if (computationStarted_) {
+        std::cerr << "Computation already started\n";
+        return;
+    }
+    
+    // Lock to check if we have clients
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex_);
+        if (clientThreads_.empty()) {
+            std::cerr << "No clients connected. Cannot start computation.\n";
+            return;
+        }
+        
+        std::cout << "Starting computation with " << clientThreads_.size() << " connected clients\n";
+    }
+
+    // Set computation flag
+    computationStarted_ = true;
+    
+    // Notify all waiting clients that computation has started
+    taskCV_.notify_all();
 }
 
 void Master::setMatrices(const Matrix& a, const Matrix& b) {
@@ -94,16 +121,20 @@ void Master::setMatrices(const Matrix& a, const Matrix& b) {
         taskQueue_.push(task);
     }
     
-    // Notify waiting clients that tasks are available
-    taskCV_.notify_all();
+    // Tasks will be distributed once startComputation() is called
 }
 
 bool Master::isComplete() const {
-    return completedTasks_ >= totalTasks_;
+    return completedTasks_ >= totalTasks_ && computationStarted_;
 }
 
 Matrix Master::getResult() const {
     return resultMatrix_;
+}
+
+int Master::getClientCount() const {
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    return clientThreads_.size();
 }
 
 void Master::acceptConnections() {
@@ -127,6 +158,7 @@ void Master::acceptConnections() {
         {
             std::lock_guard<std::mutex> lock(clientsMutex_);
             clientThreads_[clientSocket] = std::move(clientThread);
+            std::cout << "Connected clients: " << clientThreads_.size() << std::endl;
         }
     }
 }
@@ -150,6 +182,15 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
             
             {
                 std::unique_lock<std::mutex> lock(taskMutex_);
+                
+                // Wait until computation has started and there are tasks available
+                taskCV_.wait(lock, [this]() { 
+                    return computationStarted_ || !running_; 
+                });
+                
+                // If we're shutting down, exit
+                if (!running_) break;
+                
                 if (!taskQueue_.empty()) {
                     task = taskQueue_.front();
                     taskQueue_.pop();
@@ -193,15 +234,9 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
         if (it != clientThreads_.end()) {
             it->second.detach();  // Detach the thread
             clientThreads_.erase(it);
+            std::cout << "Connected clients: " << clientThreads_.size() << std::endl;
         }
     }
-}
-
-Task Master::createTask() {
-    Task task;
-    task.taskId = nextTaskId_++;
-    // Logic to divide work
-    return task;
 }
 
 void Master::processResult(const Result& result) {
