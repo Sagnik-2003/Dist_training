@@ -163,6 +163,7 @@ void Master::acceptConnections() {
     }
 }
 
+// Modify this function to handle task distribution more efficiently
 void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
     // Send matrices A and B to the client
     std::vector<char> matrixAData = NetworkMessage::serializeMatrix(matrixA_);
@@ -170,6 +171,9 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
     
     std::vector<char> matrixBData = NetworkMessage::serializeMatrix(matrixB_);
     NetworkMessage::sendMessage(clientSocket, MATRIX_DATA, matrixBData);
+    
+    // Store the client's IP address for fair distribution tracking
+    std::string clientIp = inet_ntoa(clientAddr.sin_addr);
     
     while (running_) {
         // Receive message from client
@@ -191,10 +195,35 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
                 // If we're shutting down, exit
                 if (!running_) break;
                 
+                // Get client task counter
+                int& clientTaskCount = clientTaskCounts_[clientSocket];
+                
                 if (!taskQueue_.empty()) {
+                    // Find the client with the minimum number of assigned tasks
+                    int minTasks = clientTaskCount;
+                    bool isMinimal = true;
+                    
+                    // Check if this client has more tasks than others
+                    for (const auto& [otherSocket, otherCount] : clientTaskCounts_) {
+                        if (otherSocket != clientSocket && otherCount < minTasks) {
+                            isMinimal = false;
+                            break;
+                        }
+                    }
+                    
+                    // If this client doesn't have the minimum task count and the queue has enough tasks
+                    // for other clients, we'll tell it to wait a bit
+                    if (!isMinimal && taskQueue_.size() <= clientTaskCounts_.size() - 1) {
+                        lock.unlock();
+                        NetworkMessage::sendMessage(clientSocket, NO_WORK, {});
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        continue;
+                    }
+                    
                     task = taskQueue_.front();
                     taskQueue_.pop();
                     hasTask = true;
+                    clientTaskCount++; // Increment task count for this client
                 }
             }
             
@@ -202,6 +231,9 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
                 // Send task to client
                 std::vector<char> taskData = NetworkMessage::serializeTask(task);
                 NetworkMessage::sendMessage(clientSocket, TASK_RESPONSE, taskData);
+                
+                std::cout << "Assigned task " << task.taskId << " to client " 
+                          << clientIp << " (socket " << clientSocket << ")" << std::endl;
             } else if (isComplete()) {
                 // No more tasks, send shutdown
                 NetworkMessage::sendMessage(clientSocket, SHUTDOWN, {});
@@ -217,11 +249,18 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
         else if (msgType == COMPUTATION_RESULT) {
             // Received computation result
             Result result = NetworkMessage::deserializeResult(payload);
+            
+            // Decrement task count when result is received
+            {
+                std::lock_guard<std::mutex> lock(taskMutex_);
+                clientTaskCounts_[clientSocket]--;
+            }
+            
             processResult(result);
         }
         else if (msgType == CLIENT_DISCONNECT) {
             // Client is disconnecting
-            std::cout << "Client disconnected: " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+            std::cout << "Client disconnected: " << clientIp << std::endl;
             break;
         }
     }
@@ -234,8 +273,15 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr) {
         if (it != clientThreads_.end()) {
             it->second.detach();  // Detach the thread
             clientThreads_.erase(it);
-            std::cout << "Connected clients: " << clientThreads_.size() << std::endl;
         }
+        
+        // Also remove from task count tracking
+        {
+            std::lock_guard<std::mutex> taskLock(taskMutex_);
+            clientTaskCounts_.erase(clientSocket);
+        }
+        
+        std::cout << "Connected clients: " << clientThreads_.size() << std::endl;
     }
 }
 

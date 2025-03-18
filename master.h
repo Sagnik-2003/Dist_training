@@ -45,6 +45,8 @@ private:
     // Tracking tasks and clients
     std::map<int, std::thread> clientThreads_;
     mutable std::mutex clientsMutex_;
+    // Track how many tasks each client is currently processing
+    std::map<int, int> clientTaskCounts_; // <socket, task count>
     
     std::queue<Task> taskQueue_;
     std::mutex taskMutex_;
