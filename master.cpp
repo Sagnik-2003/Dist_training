@@ -235,11 +235,11 @@ void Master::handleClient(int clientSocket, struct sockaddr_in clientAddr)
     }
 
     // Send matrices A and B to the client
-    std::vector<char> matrixAData = NetworkMessage::serializeMatrix(matrixA_);
-    NetworkMessage::sendMessage(clientSocket, MATRIX_DATA, matrixAData);
+    // std::vector<char> matrixAData = NetworkMessage::serializeMatrix(matrixA_);
+    // NetworkMessage::sendMessage(clientSocket, MATRIX_DATA, matrixAData);
 
-    std::vector<char> matrixBData = NetworkMessage::serializeMatrix(matrixB_);
-    NetworkMessage::sendMessage(clientSocket, MATRIX_DATA, matrixBData);
+    // std::vector<char> matrixBData = NetworkMessage::serializeMatrix(matrixB_);
+    // NetworkMessage::sendMessage(clientSocket, MATRIX_DATA, matrixBData);
 
     // Initialize task count for this client
     {

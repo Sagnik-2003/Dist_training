@@ -49,24 +49,24 @@ bool Client::connect() {
     std::cout << "Sent CPU clock speed: " << cpuClockSpeed_ << " GHz\n";
 
     // Receive matrices from master
-    auto [msgType1, payload1] = NetworkMessage::receiveMessage(socket_);
-    if (msgType1 != MATRIX_DATA) {
-        std::cerr << "Expected matrix A data\n";
-        disconnect();
-        return false;
-    }
-    matrixA_ = NetworkMessage::deserializeMatrix(payload1);
+    // auto [msgType1, payload1] = NetworkMessage::receiveMessage(socket_);
+    // if (msgType1 != MATRIX_DATA) {
+    //     std::cerr << "Expected matrix A data\n";
+    //     disconnect();
+    //     return false;
+    // }
+    // matrixA_ = NetworkMessage::deserializeMatrix(payload1);
     
-    auto [msgType2, payload2] = NetworkMessage::receiveMessage(socket_);
-    if (msgType2 != MATRIX_DATA) {
-        std::cerr << "Expected matrix B data\n";
-        disconnect();
-        return false;
-    }
-    matrixB_ = NetworkMessage::deserializeMatrix(payload2);
+    // auto [msgType2, payload2] = NetworkMessage::receiveMessage(socket_);
+    // if (msgType2 != MATRIX_DATA) {
+    //     std::cerr << "Expected matrix B data\n";
+    //     disconnect();
+    //     return false;
+    // }
+    // matrixB_ = NetworkMessage::deserializeMatrix(payload2);
     
-    std::cout << "Received matrices: A(" << matrixA_.rows() << "x" << matrixA_.cols() 
-              << "), B(" << matrixB_.rows() << "x" << matrixB_.cols() << ")" << std::endl;
+    // std::cout << "Received matrices: A(" << matrixA_.rows() << "x" << matrixA_.cols() 
+    //           << "), B(" << matrixB_.rows() << "x" << matrixB_.cols() << ")" << std::endl;
     
     return true;
 }
