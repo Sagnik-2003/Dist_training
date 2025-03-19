@@ -420,7 +420,7 @@ void Master::updateClientPerformance(int clientSocket, double taskTimeMs)
 void Master::processResult(const Result &result)
 {
     // Update result matrix with the computed tile
-    int resultCols = resultMatrix_.cols();
+    // int reultCols = resultMatrix_.cols();
     int tileWidth = result.endCol - result.startCol;
 
     for (int row = result.startRow; row < result.endRow; row++)
