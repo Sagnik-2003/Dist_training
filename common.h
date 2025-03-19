@@ -17,7 +17,8 @@ enum MessageType {
     MATRIX_DATA = 5,
     COMPUTATION_RESULT = 6,
     NO_WORK = 7,
-    SHUTDOWN = 8
+    SHUTDOWN = 8,
+    CPU_INFO = 9
 };
 
 // Task structure for matrix multiplication
@@ -25,8 +26,9 @@ struct Task {
     int taskId;
     int startRow;
     int endRow;
+    int startCol;  // Start column for tiled multiplication
+    int endCol;    // End column for tiled multiplication
     int matrixSize;
-    // More fields can be added as needed
 };
 
 // Result structure
@@ -34,7 +36,10 @@ struct Result {
     int taskId;
     int startRow;
     int endRow;
-    std::vector<double> resultRows;
+    int startCol;
+    int endCol;
+    std::vector<double> resultTile;
+    double executionTimeMs;  // Task execution time in milliseconds
 };
 
 // Matrix representation

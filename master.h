@@ -7,6 +7,9 @@
 #include <atomic>
 #include <condition_variable>
 
+// Define tile size for matrix multiplication
+#define TILE_SIZE 64
+
 class Master {
 public:
     Master(int port);
@@ -58,6 +61,18 @@ private:
     std::atomic<int> nextTaskId_;
     std::atomic<int> completedTasks_;
     std::atomic<int> totalTasks_;
+
+    // Client performance tracking
+    struct ClientInfo {
+        double cpuSpeed;        // GHz
+        double lastTaskTime;    // ms
+        double performanceRatio; // Higher is better
+    };
+    std::map<int, ClientInfo> clientPerformance_;
+    std::mutex perfMutex_;
+    
+    // Calculate client performance ratio
+    void updateClientPerformance(int clientSocket, double taskTimeMs);
     
     // Connection handling methods
     void acceptConnections();
@@ -68,4 +83,7 @@ private:
     
     // Calculate how to divide work based on available clients
     void redistributeWork();
+
+    // Tile management
+    void createTiledTasks();
 };

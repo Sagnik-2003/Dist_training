@@ -20,6 +20,13 @@ private:
     int socket_;
     std::atomic<bool> running_;
     std::thread workerThread_;
+
+    // Task timing
+    double cpuClockSpeed_;  // CPU clock speed in GHz
+    std::chrono::time_point<std::chrono::high_resolution_clock> taskStartTime_;
+    
+    // CPU speed detection
+    double detectCpuClockSpeed();
     
     Matrix matrixA_;
     Matrix matrixB_;

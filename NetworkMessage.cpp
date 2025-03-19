@@ -43,7 +43,7 @@ Matrix NetworkMessage::deserializeMatrix(const std::vector<char>& data) {
 
 std::vector<char> NetworkMessage::serializeTask(const Task& task) {
     std::vector<char> result;
-    size_t size = sizeof(int) * 4;
+    size_t size = sizeof(int) * 6;
     
     result.resize(size);
     char* ptr = result.data();
@@ -53,6 +53,10 @@ std::vector<char> NetworkMessage::serializeTask(const Task& task) {
     std::memcpy(ptr, &task.startRow, sizeof(int));
     ptr += sizeof(int);
     std::memcpy(ptr, &task.endRow, sizeof(int));
+    ptr += sizeof(int);
+    std::memcpy(ptr, &task.startCol, sizeof(int));
+    ptr += sizeof(int);
+    std::memcpy(ptr, &task.endCol, sizeof(int));
     ptr += sizeof(int);
     std::memcpy(ptr, &task.matrixSize, sizeof(int));
     
@@ -69,6 +73,10 @@ Task NetworkMessage::deserializeTask(const std::vector<char>& data) {
     ptr += sizeof(int);
     std::memcpy(&task.endRow, ptr, sizeof(int));
     ptr += sizeof(int);
+    std::memcpy(&task.startCol, ptr, sizeof(int));
+    ptr += sizeof(int);
+    std::memcpy(&task.endCol, ptr, sizeof(int));
+    ptr += sizeof(int);
     std::memcpy(&task.matrixSize, ptr, sizeof(int));
     
     return task;
@@ -76,7 +84,7 @@ Task NetworkMessage::deserializeTask(const std::vector<char>& data) {
 
 std::vector<char> NetworkMessage::serializeResult(const Result& result) {
     std::vector<char> data;
-    size_t size = sizeof(int) * 3 + sizeof(double) * result.resultRows.size();
+    size_t size = sizeof(int) * 5 + sizeof(double) * result.resultTile.size();
     
     data.resize(size);
     char* ptr = data.data();
@@ -87,9 +95,13 @@ std::vector<char> NetworkMessage::serializeResult(const Result& result) {
     ptr += sizeof(int);
     std::memcpy(ptr, &result.endRow, sizeof(int));
     ptr += sizeof(int);
+    std::memcpy(ptr, &result.startCol, sizeof(int));
+    ptr += sizeof(int);
+    std::memcpy(ptr, &result.endCol, sizeof(int));
+    ptr += sizeof(int);
     
-    // Copy result rows
-    std::memcpy(ptr, result.resultRows.data(), sizeof(double) * result.resultRows.size());
+    // Copy result tile
+    std::memcpy(ptr, result.resultTile.data(), sizeof(double) * result.resultTile.size());
     
     return data;
 }
@@ -104,14 +116,18 @@ Result NetworkMessage::deserializeResult(const std::vector<char>& data) {
     ptr += sizeof(int);
     std::memcpy(&result.endRow, ptr, sizeof(int));
     ptr += sizeof(int);
+    std::memcpy(&result.startCol, ptr, sizeof(int));
+    ptr += sizeof(int);
+    std::memcpy(&result.endCol, ptr, sizeof(int));
+    ptr += sizeof(int);
     
     // Calculate size of result data
     int numRows = result.endRow - result.startRow;
-    int numCols = (data.size() - 3 * sizeof(int)) / sizeof(double) / numRows;
+    int numCols = result.endCol - result.startCol;
     
     // Extract result data
-    result.resultRows.resize(numRows * numCols);
-    std::memcpy(result.resultRows.data(), ptr, sizeof(double) * result.resultRows.size());
+    result.resultTile.resize(numRows * numCols);
+    std::memcpy(result.resultTile.data(), ptr, sizeof(double) * result.resultTile.size());
     
     return result;
 }

@@ -4,7 +4,7 @@
 
 Client::Client(const std::string& masterIp, int masterPort)
     : masterIp_(masterIp), masterPort_(masterPort), socket_(-1), running_(false),
-      matrixA_(1, 1), matrixB_(1, 1) {}
+      matrixA_(1, 1), matrixB_(1, 1), cpuClockSpeed_(detectCpuClockSpeed()) {}
 
 Client::~Client() {
     disconnect();
@@ -38,6 +38,16 @@ bool Client::connect() {
     
     std::cout << "Connected to master at " << masterIp_ << ":" << masterPort_ << std::endl;
     
+    std::vector<char> cpuInfo(sizeof(double));
+    std::memcpy(cpuInfo.data(), &cpuClockSpeed_, sizeof(double));
+    if (!NetworkMessage::sendMessage(socket_, CPU_INFO, cpuInfo)) {
+        std::cerr << "Failed to send CPU info\n";
+        disconnect();
+        return false;
+    }
+    
+    std::cout << "Sent CPU clock speed: " << cpuClockSpeed_ << " GHz\n";
+
     // Receive matrices from master
     auto [msgType1, payload1] = NetworkMessage::receiveMessage(socket_);
     if (msgType1 != MATRIX_DATA) {
@@ -133,19 +143,73 @@ void Client::workerLoop() {
     std::cout << "Worker thread stopped\n";
 }
 
+double Client::detectCpuClockSpeed() {
+    // Try to read CPU frequency from /proc/cpuinfo
+    FILE* fp = fopen("/proc/cpuinfo", "r");
+    if (!fp) return 2.0; // Default value if can't read
+    
+    char buffer[1024];
+    double speed = 0.0;
+    
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        if (strstr(buffer, "cpu MHz") || strstr(buffer, "CPU MHz")) {
+            char* value = strchr(buffer, ':');
+            if (value) {
+                speed = strtod(value + 1, NULL) / 1000.0; // Convert MHz to GHz
+                break;
+            }
+        } else if (strstr(buffer, "GHz")) {
+            // Try to parse GHz value directly
+            char* value = strstr(buffer, ":") + 1;
+            if (value) {
+                // Skip leading spaces
+                while (*value == ' ') value++;
+                // Extract the number (e.g. "3.2 GHz")
+                speed = strtod(value, NULL);
+                break;
+            }
+        }
+    }
+    
+    fclose(fp);
+    return speed > 0.0 ? speed : 2.0; // Use default if couldn't determine
+}
+
 Result Client::computeMatrixMultiplication(const Task& task) {
+    // Start timing
+    taskStartTime_ = std::chrono::high_resolution_clock::now();
+
     Result result;
     result.taskId = task.taskId;
     result.startRow = task.startRow;
     result.endRow = task.endRow;
+    result.startCol = task.startCol;
+    result.endCol = task.endCol;
     
-    // Size for the result rows (for the range of rows we're calculating)
+    // Size for the result tile
     int numRows = task.endRow - task.startRow;
-    int numCols = matrixB_.cols();
-    result.resultRows.resize(numRows * numCols, 0.0);
+    int numCols = task.endCol - task.startCol;
+    result.resultTile.resize(numRows * numCols, 0.0);
     
-    // Use SIMD-optimized implementation when appropriate
-    multiplyRowsSIMD(matrixA_, matrixB_, result.resultRows, task.startRow, task.endRow);
+    // Extract the needed parts of the matrices for this tile
+    for (int i = task.startRow; i < task.endRow; i++) {
+        for (int j = task.startCol; j < task.endCol; j++) {
+            double sum = 0.0;
+            for (int k = 0; k < matrixA_.cols(); k++) {
+                sum += matrixA_.at(i, k) * matrixB_.at(k, j);
+            }
+            int localRow = i - task.startRow;
+            int localCol = j - task.startCol;
+            result.resultTile[localRow * numCols + localCol] = sum;
+        }
+    }
+    
+    // Compute the task execution time
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double taskTimeMs = std::chrono::duration<double, std::milli>(endTime - taskStartTime_).count();
+    
+    // Add timing info to the result
+    result.executionTimeMs = taskTimeMs;
     
     return result;
 }
