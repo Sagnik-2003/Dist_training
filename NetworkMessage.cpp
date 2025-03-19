@@ -5,28 +5,29 @@ std::vector<char> NetworkMessage::serializeMatrix(const Matrix& matrix) {
     std::vector<char> result;
     int rows = matrix.rows();
     int cols = matrix.cols();
-    size_t size = sizeof(int) * 2 + sizeof(double) * rows * cols;
+    size_t dataSize = rows * cols * sizeof(double);
+    size_t headerSize = 2 * sizeof(int);
+    result.resize(headerSize + dataSize);
     
-    result.resize(size);
     char* ptr = result.data();
     
-    // Store rows and columns
+    // Add dimensions
     std::memcpy(ptr, &rows, sizeof(int));
     ptr += sizeof(int);
     std::memcpy(ptr, &cols, sizeof(int));
     ptr += sizeof(int);
     
-    // Store matrix data
-    std::memcpy(ptr, matrix.data().data(), sizeof(double) * rows * cols);
+    // Add data
+    std::memcpy(ptr, matrix.data(), dataSize);
     
     return result;
 }
 
 Matrix NetworkMessage::deserializeMatrix(const std::vector<char>& data) {
     const char* ptr = data.data();
-    
-    // Extract rows and columns
     int rows, cols;
+    
+    // Get dimensions
     std::memcpy(&rows, ptr, sizeof(int));
     ptr += sizeof(int);
     std::memcpy(&cols, ptr, sizeof(int));
@@ -35,8 +36,8 @@ Matrix NetworkMessage::deserializeMatrix(const std::vector<char>& data) {
     // Create matrix
     Matrix matrix(rows, cols);
     
-    // Copy data
-    std::memcpy(matrix.data().data(), ptr, sizeof(double) * rows * cols);
+    // Fill data (directly copy to the matrix's data array)
+    std::memcpy(matrix.data(), ptr, rows * cols * sizeof(double));
     
     return matrix;
 }

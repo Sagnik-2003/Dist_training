@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <sys/socket.h>
+#include <cstring>
 
 // Message types for communication protocol
 enum MessageType {
@@ -43,28 +44,76 @@ struct Result {
 };
 
 // Matrix representation
-class Matrix {
-public:
-    Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
-    
-    double& at(int row, int col) {
-        return data_[row * cols_ + col];
-    }
-    
-    double at(int row, int col) const {
-        return data_[row * cols_ + col];
-    }
-    
-    int rows() const { return rows_; }
-    int cols() const { return cols_; }
-    
-    const std::vector<double>& data() const { return data_; }
-    std::vector<double>& data() { return data_; }
+// Ensure Matrix class uses heap memory
 
-private:
-    int rows_;
-    int cols_;
-    std::vector<double> data_;
+class Matrix {
+    public:
+        Matrix(int rows, int cols) : rows_(rows), cols_(cols) {
+            data_ = new double[rows * cols];
+            // Initialize all elements to zero
+            std::memset(data_, 0, rows * cols * sizeof(double));
+        }
+        
+        ~Matrix() {
+            delete[] data_;
+        }
+        
+        // Copy constructor
+        Matrix(const Matrix& other) : rows_(other.rows_), cols_(other.cols_) {
+            data_ = new double[rows_ * cols_];
+            std::memcpy(data_, other.data_, rows_ * cols_ * sizeof(double));
+        }
+        
+        // Move constructor
+        Matrix(Matrix&& other) noexcept : rows_(other.rows_), cols_(other.cols_), data_(other.data_) {
+            other.data_ = nullptr;
+            other.rows_ = 0;
+            other.cols_ = 0;
+        }
+        
+        // Copy assignment
+        Matrix& operator=(const Matrix& other) {
+            if (this != &other) {
+                delete[] data_;
+                rows_ = other.rows_;
+                cols_ = other.cols_;
+                data_ = new double[rows_ * cols_];
+                std::memcpy(data_, other.data_, rows_ * cols_ * sizeof(double));
+            }
+            return *this;
+        }
+        
+        // Move assignment
+        Matrix& operator=(Matrix&& other) noexcept {
+            if (this != &other) {
+                delete[] data_;
+                rows_ = other.rows_;
+                cols_ = other.cols_;
+                data_ = other.data_;
+                other.data_ = nullptr;
+                other.rows_ = 0;
+                other.cols_ = 0;
+            }
+            return *this;
+        }
+        
+        inline double& at(int row, int col) {
+            return data_[row * cols_ + col];
+        }
+        
+        inline const double& at(int row, int col) const {
+            return data_[row * cols_ + col];
+        }
+        
+        int rows() const { return rows_; }
+        int cols() const { return cols_; }
+        double* data() { return data_; }
+        const double* data() const { return data_; }
+    
+    private:
+        int rows_;
+        int cols_;
+        double* data_; // Heap-allocated array
 };
 
 // Network message serialization/deserialization helpers
